@@ -5,6 +5,32 @@ import { GuardianSession } from './GuardianSession'
 import { recoveryMs, RiskMonitor, warningCooldownMs } from './riskState'
 import { TranscriptWindow, windowMs } from './transcriptWindow'
 
+test('family alerts are silent for ordinary speech and caution, and upgrade one episode without stopping local audio', async () => {
+  const { guardian, analyze, finalize, notifyFamily, play, rescue } = setup()
+  analyze.mockResolvedValueOnce(result('CONTINUE_LISTENING'))
+    .mockResolvedValueOnce({ ...result('SHOW_CAUTION', 30), evidence_fragment_ids: [2] })
+    .mockResolvedValueOnce({ ...result('SPOKEN_WARNING', 50), evidence_fragment_ids: [2, 3] })
+    .mockResolvedValue({ ...result('FAMILY_RESCUE', 75), evidence_fragment_ids: [2, 3, 4] })
+  notifyFamily.mockImplementation(() => { throw new Error('offline') })
+  guardian.start('en-IN')
+  finalize('I will come home.')
+  await vi.advanceTimersByTimeAsync(0)
+  finalize('I will come home. Send your OTP.')
+  await vi.advanceTimersByTimeAsync(0)
+  expect(notifyFamily).not.toHaveBeenCalled()
+  finalize('I will come home. Send your OTP. You will be arrested.')
+  await vi.advanceTimersByTimeAsync(350)
+  expect(play).toHaveBeenCalledOnce()
+  expect(notifyFamily.mock.calls[0][0]).toMatchObject({ state: 'warning' })
+  finalize('Transfer money to the safe account.')
+  await vi.advanceTimersByTimeAsync(350)
+  expect(rescue).toHaveBeenCalledOnce()
+  expect(notifyFamily.mock.calls[1][0]).toEqual({ ...notifyFamily.mock.calls[0][0], state: 'rescue' })
+  finalize('Stay on the line.')
+  await vi.advanceTimersByTimeAsync(0)
+  expect(notifyFamily).toHaveBeenCalledTimes(2)
+})
+
 function result(action: AnalysisResult['recommended_action'], score = 0): AnalysisResult {
   return {
     risk_score: score, risk_level: score >= 70 ? 'critical' : score >= 50 ? 'high_caution' : 'low',
@@ -30,9 +56,10 @@ function setup() {
   const loadVoice = vi.fn().mockResolvedValue(null)
   const rescue = vi.fn<NonNullable<ConstructorParameters<typeof GuardianSession>[5]>>()
     .mockImplementation((_voice, signal) => play(signal))
-  const guardian = new GuardianSession(provider, vi.fn(), analyze, play, loadVoice, rescue)
+  const notifyFamily = vi.fn()
+  const guardian = new GuardianSession(provider, vi.fn(), analyze, play, loadVoice, rescue, notifyFamily)
   const finalize = (final: string, interim = '') => streams.at(-1)?.emit({ type: 'transcript', final, interim })
-  return { guardian, streams, provider, analyze, play, finalize, loadVoice, rescue }
+  return { guardian, streams, provider, analyze, play, finalize, loadVoice, rescue, notifyFamily }
 }
 
 afterEach(() => vi.useRealTimers())

@@ -15,7 +15,7 @@ Maata-Saayam is a functional prototype for the Scaler × Wispr Flow Build for Bh
 - Keep dependencies small, commit the frontend lockfile, and run Vitest, Pytest, and the frontend build for relevant changes.
 - Keep `docker compose up --build` working from the repository root and document setup changes in the README.
 - Use semantic HTML, visible keyboard focus, screen reader announcements, and text alongside audio warnings. Identify Telugu text with `lang="te"`.
-- Get approval before advancing beyond Phase 5. Speech Lab analysis stays user-initiated. Live Guardian analyzes finalized speech only after monitoring starts and can play Telugu warnings and a locally recorded family message.
+- Get approval before advancing beyond Phase 6. Speech Lab analysis stays user-initiated. Live Guardian analyzes finalized speech only after monitoring starts and can play Telugu warnings and a locally recorded family message.
 
 ## Privacy constraints
 
@@ -23,3 +23,4 @@ Maata-Saayam is a functional prototype for the Scaler × Wispr Flow Build for Bh
 - Never persist call recordings or raw transcripts. Keep processing data in memory, discard it when the session ends, and exclude it from logs and analytics.
 - Ask for explicit consent before capturing microphone audio, sending audio to an optional provider, or sharing information with a guardian. Minimize shared information.
 - Store deliberately recorded family safety messages in this browser's IndexedDB only. Record only after an explicit action and save only after confirmation in Family Setup. Provide replacement and deletion controls. Keep call audio and transcripts out of this storage.
+- Pair devices only with explicit consent. Share approved display names, optional contact details, and categorized serious alerts. Keep codes, credentials, audio, transcripts, and matched phrases out of alert payloads and logs. Deploy family pairing over HTTPS and WSS.

@@ -100,7 +100,7 @@ def score_group(group: list[Cue], policy: ScoringPolicy) -> tuple[int, list[Sign
                 or (cue.kind == "urgent_transfer" and not transfer_context)):
             continue
         previous = selected.get(cue.signal.category)
-        if previous is None or cue.kind in {"disconnect_threat", "direct_arrest", "payment_threat"}:
+        if previous is None or cue.kind in {"disconnect_threat", "direct_arrest", "payment_threat", "safe_account"}:
             selected[cue.signal.category] = cue
     categories = selected.keys()
     signals = sorted((cue.signal for cue in selected.values()), key=lambda signal: signal.start)

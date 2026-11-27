@@ -9,4 +9,5 @@ Each future phase requires approval before implementation begins.
 | 3 | Multilingual transcript normalization, rule-based risk assessment, analysis API, and on-demand Speech Lab results | Verify original evidence, multilingual scam patterns, genuine-call regressions, and end-to-end analysis without external providers. |
 | 4 | Live Guardian speakerphone monitoring with incremental analysis, risk states, and Telugu spoken warnings | Verify consent, session cleanup, request ordering, warning timing, and the bundled fallback. |
 | 5 | Local Family Setup and trusted voice rescue | Verify recording, replacement and deletion, automatic and manual rescue, fallback playback, and microphone recovery. |
-| Later | Cross-device guardian alerts, post-call recovery, and Wispr Flow-compatible incident reporting | Verify authorized pairing, delivery, report editing, and deletion of transient session data. |
+| 6 | Cross-device family pairing, live alerts, acknowledgement, and user-initiated elder contact | Verify pairing consent and revocation, role isolation, reconnect, and local protection during outages. |
+| 7 | Post-call recovery and Wispr Flow-compatible incident reporting | Verify recovery guidance, report editing, and deletion of transient session data. |

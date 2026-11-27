@@ -16,6 +16,25 @@ test('renders three navigation targets and a connection status', () => {
   expect(html).toContain('href="?view=speech-lab"')
   expect(html).toContain('href="?view=live-guardian"')
   expect(html).toContain('href="?view=family-setup"')
+  expect(html).toContain('href="?view=family-guardian&amp;device=elder"')
+})
+
+test('Live Guardian exposes elder pairing and the deep link opens the Telugu code form', () => {
+  const location = { search: '?view=live-guardian' }
+  vi.stubGlobal('window', { location })
+  try {
+    const live = renderToStaticMarkup(<App />)
+    expect(live).toContain('కుటుంబ పరికరం జత')
+    expect(live).toContain('href="?view=family-guardian&amp;device=elder"')
+    expect(live).toContain('కుటుంబ సహాయం')
+    location.search = '?view=family-guardian&device=elder'
+    const pairing = renderToStaticMarkup(<App />)
+    expect(pairing).toContain('id="pair-code"')
+    expect(pairing).toContain('కుటుంబ పేరును చూడండి')
+    expect(pairing).not.toContain('Generate pairing code')
+  } finally {
+    vi.unstubAllGlobals()
+  }
 })
 
 test('Speech Lab exposes three languages and a fallback when recognition is unavailable', () => {

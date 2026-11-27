@@ -1,6 +1,9 @@
 services:
   backend:
     build: ./backend
+    environment:
+      FAMILY_REQUIRE_HTTPS: "${FAMILY_REQUIRE_HTTPS:-0}"
+      FORWARDED_ALLOW_IPS: "${FORWARDED_ALLOW_IPS:-127.0.0.1}"
     healthcheck:
       test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/api/health', timeout=2).close()"]
       interval: 5s
@@ -13,4 +16,4 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "127.0.0.1:${APP_PORT:-5173}:80"
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-5173}:80"

@@ -56,9 +56,11 @@ REQUEST = r"(?:send|share|tell|ask|asks|asking|give|provide|read out|reveal)"
 PAY = r"(?:send|transfer|deposit|move|pay)"
 FUNDS = r"(?:money|funds|payment|rupees|inr|balance|\d+)"
 TIME = r"(?:now|immediately|urgent|today|right away|within \d+ minutes)"
-HIDE = r"(?:don't|do not|never) (?:tell|inform|contact|call|message)"
+PROHIBITION = r"(?:don't|do not|never)"
+HIDE = rf"{PROHIBITION} (?:tell|inform|contact|call|message|speak to)"
 TARGET = r"(?:anyone|family|parents|children|friends|son|daughter|anybody)"
-HANG = r"(?:hang up|end the call|cut the call)"
+HANG = r"(?:hang up(?: (?:the|this|your) (?:call|phone))?|(?:end|cut|drop) (?:the|this|your) call)"
+CALL_CONTROL = rf"{PROHIBITION} {HANG}|stay on the line"
 ARREST = r"(?:arrest|arrested)"
 RECIPIENT_GAP = GAP.replace("{0,3}", "{0,3}?")
 ARREST_THREAT = (rf"(?:(?:you are|you're|you(?: will| shall|'ll) be|you(?: will|'ll) get){GAP}"
@@ -120,9 +122,9 @@ RULES = (
          rf"(?:illegal|drugs){WIDE}(?:parcel|courier)|"
          rf"(?:parcel|courier|customs){WIDE}(?:illegal|drugs|contraband)",
          "The speaker links a parcel or customs claim to illegal goods."),
-    rule("coercion", "high", rf"(?:don't|do not|never) {HANG}|stay on the line",
+    rule("coercion", "high", CALL_CONTROL,
          "The speaker pressures the recipient to keep the call open or threatens them for disconnecting.",
-         directive=True),
+         directive=True, kind="call_control"),
 )
 
 DISCONNECT = rule(
@@ -139,15 +141,17 @@ REPORT = re.compile(
     r"|(?<!\S)(?:i|we) (?:was|were) (?:told|asked|warned)(?!\S)"
 )
 REPORT_INTRO = re.compile(r"(?:said|says|told me|tells me|claimed|asked me|warned)(?: that)?$")
-INCOMPLETE = re.compile(r"(?:^| )(?:to|me|your|the|my|for|be|send|transfer|share|tell|pay|give|provide|ask|verify)$")
+INCOMPLETE = re.compile(rf"(?:^| )(?:to|me|your|the|my|for|be|send|transfer|share|tell|pay|give|provide|ask|verify|{PROHIBITION})$")
 CONTINUATION_RULES = tuple(candidate for candidate in RULES if candidate.kind in {
-    "direct_arrest", "safe_account", "payment_demand", "credential_request", "payment_threat",
+    "direct_arrest", "safe_account", "payment_demand", "credential_request", "payment_threat", "call_control",
 })
 BENIGN_SECRECY = re.compile(r"(?<!\S)(?:birthday|party|surprise|gift|present|retirement|పుట్టినరోజు|जन्मदिन)(?!\S)")
 BENIGN_HOLD = re.compile(r"^(?:while|until) (?:i|we) (?:find|look for|get|grab|check|write|open|answer|look up)(?!\S)")
 INFORMATIONAL = re.compile(r"(?<!\S)(?:what|why|how|whether|if)(?!\S)")
 OWN_LOGIN = re.compile(r"^(?:for )?(?:my own login|my login|my own account login|a test)(?!\S)")
 NEGATION = re.compile(rf"(?<!\S){NEGATIVE}(?!\S)")
+COMPLETED_DIRECTIVE = re.compile(rf"(?<!\S)(?:{HIDE}{GAP}{TARGET}|{TARGET}{GAP}{HIDE}|{CALL_CONTROL})(?!\S)")
+NEXT_DIRECTIVE = re.compile(rf"^(?:{HIDE}{GAP}{TARGET}|{CALL_CONTROL}|{PROHIBITION} (?:{PAY}|{REQUEST}))(?!\S)")
 
 
 def contextual_match(candidate: Rule, text: str, match: re.Match[str]) -> bool:
@@ -177,12 +181,18 @@ def contextual_match(candidate: Rule, text: str, match: re.Match[str]) -> bool:
 
 
 def is_denied(text: str, match: re.Match[str], directive: bool) -> bool:
-    before = text[:match.start()].split()
-    after = text[match.end():].split()
+    before = text[:match.start()]
+    after = text[match.end():].strip()
+    # ASR can omit punctuation between independent commands. A completed directive
+    # retains its own negation instead of vetoing the next matched command.
+    completed = list(COMPLETED_DIRECTIVE.finditer(before))
+    if completed:
+        before = before[completed[-1].end():]
     # Look for scoped negative markers immediately around the claim, including suffix orders in Hindi/Telugu.
-    preceding = " ".join(before[-3:])
-    following = " ".join(after[:2])
-    if NEGATION.search(preceding) or re.match(rf"{NEGATIVE}(?: |$)", following):
+    preceding = " ".join(before.split()[-3:])
+    if NEGATION.search(preceding) or (
+        re.match(rf"{NEGATIVE}(?: |$)", after) and not NEXT_DIRECTIVE.match(after)
+    ):
         return True
     return not directive and bool(NEGATION.search(match.group()))
 
