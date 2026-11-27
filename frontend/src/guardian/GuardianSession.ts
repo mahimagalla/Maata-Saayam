@@ -2,6 +2,7 @@ import { requestAnalysis, type AnalysisResult, type TranscriptFragment } from '.
 import { alertId, type AlertNotice, type AlertState, type Threat } from '../alerts/familyLink'
 import { readFamilyVoice, type FamilyVoice } from '../family/familyVoiceStore'
 import { fallbackMessage, playFamilyRescue } from '../family/rescueAudio'
+import { rememberRecovery, type RecoverySummary } from '../recovery/summary'
 import type { SpeechEvent, SpeechLanguage, SpeechProvider, SpeechSession } from '../speech/provider'
 import { isHighRisk, RiskMonitor, warningCooldownMs, type RiskState } from './riskState'
 import { TranscriptWindow } from './transcriptWindow'
@@ -30,12 +31,13 @@ export type GuardianState = {
   warningPlaying: boolean
   warningFailed: boolean
   rescue: RescueState | null
+  recovery: RecoverySummary | null
 }
 
 export const initialGuardianState: GuardianState = {
   recognition: 'IDLE', microphoneActive: false, recognitionError: '',
   analysis: 'IDLE', risk: 'LISTENING', result: null, transcript: '', interim: '',
-  warningPlaying: false, warningFailed: false, rescue: null,
+  warningPlaying: false, warningFailed: false, rescue: null, recovery: null,
 }
 
 export function isMonitoring(status: RecognitionState) {
@@ -54,6 +56,7 @@ export class GuardianSession {
   private playback?: AbortController
   private resumeTimer?: ReturnType<typeof setTimeout>
   private familyVoice: FamilyVoice | null = null
+  private sessionRecovery: RecoverySummary | null = null
   private criticalEvidence = new Set<number>()
   private lastRescueAt = -Infinity
   private notice?: { id: string; evidence: number[]; state: AlertState }
@@ -71,11 +74,24 @@ export class GuardianSession {
   start(language: SpeechLanguage) {
     if (isMonitoring(this.state.recognition) || this.provider.unavailableReason || this.state.rescue) return
     this.language = language
+    this.update({ recovery: null })
     this.openMicrophone()
   }
 
   stop() {
+    if (!isMonitoring(this.state.recognition)) return
+    const recovery = this.sessionRecovery
+    const rescue = this.playback ? this.state.rescue : null
+    this.release(Boolean(rescue))
+    this.update({ ...initialGuardianState, recognition: 'STOPPED', recovery, rescue })
+  }
+
+  discard() {
     this.finish('STOPPED')
+  }
+
+  dismissRecovery() {
+    this.update({ recovery: null })
   }
 
   dispose() {
@@ -206,6 +222,7 @@ export class GuardianSession {
       const fresh = allowWarning && ids.some((id) => id > this.evaluatedThrough)
       this.evaluatedThrough = Math.max(this.evaluatedThrough, fragments.at(-1)?.id ?? 0)
       const shouldWarn = this.risk.assess(result.recommended_action, now, ids, fresh)
+      if (fresh) this.sessionRecovery = rememberRecovery(this.sessionRecovery, result)
       this.update({ result, risk: this.risk.state, analysis: 'READY' })
       if (result.recommended_action === 'FAMILY_RESCUE' && this.risk.state === 'CRITICAL') {
         const continuing = ids.some((id) => this.criticalEvidence.has(id))
@@ -359,12 +376,16 @@ export class GuardianSession {
     session?.abort()
   }
 
-  private release() {
+  private release(preserveRescuePlayback = false) {
     this.closeMicrophone()
     this.cancelRequest()
     clearTimeout(this.expiryTimer)
-    this.cancelPlayback()
-    this.familyVoice = null
+    clearTimeout(this.resumeTimer)
+    if (!preserveRescuePlayback) {
+      this.cancelPlayback()
+      this.familyVoice = null
+    }
+    this.sessionRecovery = null
     this.criticalEvidence.clear()
     this.lastRescueAt = -Infinity
     this.notice = undefined

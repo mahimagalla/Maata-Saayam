@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FamilyRescuePanel } from '../family/FamilyRescuePanel'
 import { useFamilyLink } from '../alerts/familyLink'
+import { RecoveryPanel } from '../recovery/RecoveryPanel'
 import { type SpeechLanguage, type SpeechProvider } from '../speech/provider'
 import { useMicrophonePermission } from '../speech/useMicrophonePermission'
 import { GuardianSession, initialGuardianState, isMonitoring } from './GuardianSession'
@@ -68,13 +69,17 @@ export function LiveGuardian({ provider }: { provider: SpeechProvider }) {
     : 'తొందరపడకండి. వివరాలు చెప్పే ముందు, మీకు తెలిసిన అధికారిక నంబరుకు మీరే ఫోన్ చేసి తెలుసుకోండి.'
 
   useEffect(() => {
-    const leave = () => session.stop()
+    const leave = () => session.discard()
     window.addEventListener('pagehide', leave)
     return () => {
       window.removeEventListener('pagehide', leave)
       session.dispose()
     }
   }, [session])
+
+  if (state.recovery && !state.rescue) {
+    return <RecoveryPanel summary={state.recovery} onDismiss={() => session.dismissRecovery()} />
+  }
 
   return (
     <main lang="te" className="mx-auto max-w-3xl space-y-6 px-6 py-10 text-lg text-slate-900">

@@ -15,7 +15,8 @@ Maata-Saayam is a functional prototype for the Scaler × Wispr Flow Build for Bh
 - Keep dependencies small, commit the frontend lockfile, and run Vitest, Pytest, and the frontend build for relevant changes.
 - Keep `docker compose up --build` working from the repository root and document setup changes in the README.
 - Use semantic HTML, visible keyboard focus, screen reader announcements, and text alongside audio warnings. Identify Telugu text with `lang="te"`.
-- Get approval before advancing beyond Phase 6. Speech Lab analysis stays user-initiated. Live Guardian analyzes finalized speech only after monitoring starts and can play Telugu warnings and a locally recorded family message.
+- Get approval before advancing beyond Phase 7. Speech Lab analysis stays user-initiated. Live Guardian analyzes finalized speech only after monitoring starts and can play Telugu warnings and a locally recorded family message.
+- Post-stop guidance uses ephemeral level and reason codes. Only deliberate microphone stop opens recovery. Keep reporting links user-initiated and preserve the category-only family alert boundary.
 
 ## Privacy constraints
 
