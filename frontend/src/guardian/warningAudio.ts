@@ -1,13 +1,19 @@
 export const warningText = 'భయపడకండి. ఇది మోసపూరిత కాల్ కావచ్చు. నిజమైన పోలీసులు ఫోన్‌లో డబ్బు అడగరు. దయచేసి ఫోన్ పెట్టేయండి.'
 export const warningAudioUrl = '/audio/telugu-safety-warning.wav'
 
-export async function playTeluguWarning(signal: AbortSignal): Promise<void> {
+export function playTeluguWarning(signal: AbortSignal): Promise<void> {
+  return playTeluguMessage(warningText, warningAudioUrl, signal, 20_000)
+}
+
+export async function playTeluguMessage(
+  message: string, fallbackUrl: string, signal: AbortSignal, synthesisTimeoutMs = 40_000,
+): Promise<void> {
   if (signal.aborted) return
   const synthesis = window.speechSynthesis
   const voice = synthesis?.getVoices().find((candidate) => /^te(?:[-_]|$)/i.test(candidate.lang))
   if (voice && typeof SpeechSynthesisUtterance !== 'undefined') {
     // Keep the utterance referenced until a terminal event. A broken voice can fall back to the asset.
-    const utterance = new SpeechSynthesisUtterance(warningText)
+    const utterance = new SpeechSynthesisUtterance(message)
     utterance.voice = voice
     utterance.lang = voice.lang
     utterance.rate = 0.9
@@ -19,14 +25,14 @@ export async function playTeluguWarning(signal: AbortSignal): Promise<void> {
       }, () => {
         utterance.onend = utterance.onerror = null
         synthesis.cancel()
-      })
+      }, synthesisTimeoutMs)
       if (spoken || signal.aborted) return
     } catch {
       if (signal.aborted) return
     }
   }
 
-  await playAudio(warningAudioUrl, signal)
+  await playAudio(fallbackUrl, signal)
 }
 
 export async function playAudio(url: string, signal: AbortSignal, mimeType = ''): Promise<void> {

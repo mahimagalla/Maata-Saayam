@@ -86,3 +86,9 @@ The store is behind the `FamilyStore` interface. The prototype uses one process,
 Interactive demos can use clearly labeled scripted conversations and exercise the downstream assessment and warning flow. External recognition providers require explicit configuration and consent.
 
 Call audio and transcripts remain transient and excluded from logs. Incident reports will use user-approved details and plain text suitable for a Wispr Flow-assisted workflow.
+
+## Phase 7 post-call safety guidance
+
+Live Guardian remembers the strongest fresh suspicious result using a level and a bounded list of structured reason codes. At equal severity the latest result supplies the reasons. Specific labels such as CBI, digital arrest and a safe account require a matching category and corroborating text in its original matched evidence. Only the reason codes survive deliberate microphone stop. Recognition interruption, page navigation and reload discard the summary. Dismissing recovery or starting a fresh session clears it. There are no recovery endpoints or family messages.
+
+If family rescue is playing at deliberate stop, the microphone and analysis stop immediately while that local audio continues. The rescue panel remains until the elder dismisses it. Recovery guidance plays only on request and uses Telugu browser synthesis with a bundled synthesized WAV fallback. Its fixed wording never contains session content. Reporting uses explicit dialer and official portal links as documented in the README.

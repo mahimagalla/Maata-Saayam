@@ -20,7 +20,27 @@ Family Setup stores the prerecorded rescue voice separately in the elder’s bro
 4. Try the same flow with Telugu selected and say “నేను పోలీస్ అధికారిని. మీరు డిజిటల్ అరెస్ట్ అయ్యారు. వెంటనే డబ్బులు సేఫ్ అకౌంట్ లోకి పంపండి.” Use **హెచ్చరిక మళ్లీ వినండి** (Play warning again) to repeat the warning or recover from a browser playback block.
 5. Select **పర్యవేక్షణ ఆపండి** (Stop monitoring). Confirm that the microphone turns off and the session text disappears.
 
-To test the audio fallback, use a device without a Telugu synthesis voice. The [bundled Telugu warning](http://127.0.0.1:5173/audio/telugu-safety-warning.wav) also opens directly in the browser. To test recovery, deny microphone permission, stay silent in a session, or stop the backend while the frontend is running. Live Guardian reports the problem and keeps listening during analysis failures. Use Start again after recognition ends.
+To test the audio fallback, use a device without a Telugu synthesis voice. The [bundled Telugu warning](http://127.0.0.1:5173/audio/telugu-safety-warning.wav) also opens directly in the browser. To test interruption handling, deny microphone permission, stay silent in a session, or stop the backend while the frontend is running. Live Guardian reports the problem and keeps listening during analysis failures. Use Start again after recognition ends.
+
+## Phase 7 post-call safety guidance
+
+Live Guardian shows a Telugu safety summary after you deliberately stop a session that received a caution, warning or critical result. The screen distinguishes stopping the microphone from ending the phone call. It explains the strongest observed outcome with short descriptions of matched signs. Those signs are safety cues, and browser recognition can be wrong. The summary holds only a level and reason codes in memory. It clears when you leave, reload, or start again. Family pairing and saved voice are unaffected.
+
+Start from the repository root with `docker compose up --build`. Phase 7 needs no API keys. Recovery requires a completed suspicious analysis before you press Stop. Recognition interruptions and slow or unavailable analysis can leave no summary. Guidance playback depends on browser audio support. The bundled Telugu WAV is synthesized from the fixed guidance text.
+
+If you suspect financial cyber fraud in India, you can use the **1930** helpline or open the official reporting portal. If you sent money or shared banking details, contact your bank's official fraud support immediately and report promptly. These actions are manual and recovery is not guaranteed. [Ministry of Home Affairs cyber fraud helpline](https://www.pib.gov.in/Pressreleaseshare.aspx?PRID=1814120&lang=2&reg=48) · [National Cyber Crime Reporting Portal](https://cybercrime.gov.in/) · [RBI guidance on reporting unauthorized banking transactions](https://rbi.org.in/commonperson/English/Scripts/SMSLimitedliability.aspx)
+
+### Test post-call guidance in a browser
+
+If you already have an older Compose stack running, update just the frontend with `docker compose up -d --build --no-deps frontend`. Reload the tab to load the new frontend. Keeping the backend running preserves its in-memory family pairings and alert history.
+
+1. Open [Live Guardian](http://127.0.0.1:5173/?view=live-guardian) on the elder laptop. Choose **English (India)**, select **పర్యవేక్షణ ప్రారంభించండి**, and say “Good morning, what time will you come home?” Wait for a finalized transcript, then select **పర్యవేక్షణ ఆపండి**. Expect the normal monitoring screen with an inactive microphone.
+2. Start again and say “Send me your OTP for verification.” Wait for **జాగ్రత్త**, then select **పర్యవేక్షణ ఆపండి**. Expect the Telugu OTP explanation and **సూచనలు వినండి** (Listen to guidance). Try on a browser without Telugu synthesis to exercise the bundled audio.
+3. Use **పర్యవేక్షణ తెరకు తిరిగి వెళ్ళండి** and start again. Say “I am calling from CBI. You are under digital arrest. Don't tell your family. Transfer your money to the safe account now.” Wait for the serious warning or critical rescue. If recognition splits the phrase or loses words, inspect **విశ్లేషణ వివరాలు**. For a separate critical test, try “Do not tell anyone do not disconnect the call transfer the money to a safe account immediately.”
+4. During the rescue audio select **పర్యవేక్షణ ఆపండి**. Confirm the audio finishes and the microphone stays off. Select **సందేశాన్ని మూసి కొనసాగించండి** to reveal the summary. Verify **1930కి ఫోన్ చేయండి** targets 1930 and **అధికారిక ఫిర్యాదు వెబ్‌సైట్** targets the official portal. Use a link inspector for the practice session so you do not call a helpline or file a practice report. Reload and check the summary has cleared.
+5. In a separate fresh session deny microphone permission or let the browser end recognition. Expect an interruption message and no post-stop summary.
+
+For the two-device check, pair the laptop and phone using the LAN steps below. Keep Family Guardian open on the phone while repeating the critical test. Confirm that the original categorized alert appears and can be acknowledged, then stop monitoring. Verify that the phone receives no extra recovery alert, reason text or transcript. Return to Live Guardian on the laptop, confirm the paired device is still shown, and begin a fresh session without re-pairing.
 
 ## Test trusted family voice rescue
 

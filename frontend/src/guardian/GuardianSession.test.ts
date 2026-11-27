@@ -62,7 +62,10 @@ function setup() {
   return { guardian, streams, provider, analyze, play, finalize, loadVoice, rescue, notifyFamily }
 }
 
-afterEach(() => vi.useRealTimers())
+afterEach(() => {
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
+})
 
 test('starts the selected microphone once, shows interim text, and clears state on stop', async () => {
   const { guardian, streams, provider, analyze, finalize } = setup()
@@ -192,10 +195,87 @@ test('genuine results stay silent and identical high-risk results play once unle
   expect(play).toHaveBeenCalledTimes(1)
   guardian.repeatRescue()
   expect(play).toHaveBeenCalledTimes(2)
-  guardian.stop()
+  guardian.discard()
   expect(play.mock.calls[1][0].aborted).toBe(true)
   await vi.advanceTimersByTimeAsync(350)
   expect(streams).toHaveLength(2)
+})
+
+test.each([
+  ['CONTINUE_LISTENING', null],
+  ['SHOW_CAUTION', 'caution'],
+  ['SPOKEN_WARNING', 'warning'],
+] as const)('deliberate stop after %s retains only the recovery tier and recognized category', async (action, level) => {
+  const { guardian, analyze, finalize, notifyFamily, streams } = setup()
+  const transcript = level ? 'Send me your OTP for verification.' : 'Good morning, how are you?'
+  analyze.mockResolvedValue({
+    ...result(action, level === 'caution' ? 30 : level === 'warning' ? 50 : 0),
+    evidence_fragment_ids: level ? [1] : [], evidence: level ? ['Send me your OTP'] : [],
+    normalized_transcript: transcript,
+    detected_signals: level ? [{ category: 'credential_theft', evidence: transcript, severity: 'medium',
+      start: 0, end: transcript.length, match_quality: 'direct', explanation: 'secret 456789' }] : [],
+  })
+  const write = vi.fn()
+  const network = vi.fn()
+  vi.stubGlobal('localStorage', { setItem: write })
+  vi.stubGlobal('indexedDB', { open: write })
+  vi.stubGlobal('fetch', network)
+  guardian.start('en-IN')
+  finalize(transcript)
+  await vi.advanceTimersByTimeAsync(0)
+  const alerts = notifyFamily.mock.calls.length
+  guardian.stop()
+  expect(guardian.state).toMatchObject({ recognition: 'STOPPED', transcript: '', interim: '', result: null,
+    recovery: level ? { level, reasons: ['credential_theft'] } : null })
+  const stopped = guardian.state
+  streams[0].emit({ type: 'ended' })
+  guardian.stop()
+  expect(guardian.state).toBe(stopped)
+  expect(JSON.stringify(guardian.state)).not.toContain('456789')
+  expect(notifyFamily).toHaveBeenCalledTimes(alerts)
+  expect(write).not.toHaveBeenCalled()
+  expect(network).not.toHaveBeenCalled()
+  guardian.dismissRecovery()
+  guardian.stop()
+  expect(guardian.state.recovery).toBeNull()
+})
+
+test.each(['error', 'ended'] as const)('recognition %s clears a previous suspicious outcome without a post-stop summary', async (type) => {
+  const { guardian, analyze, finalize, streams } = setup()
+  analyze.mockResolvedValue({ ...result('SHOW_CAUTION'), evidence_fragment_ids: [1] })
+  guardian.start('te-IN')
+  finalize('మీ ఓటీపీ చెప్పండి.')
+  await vi.advanceTimersByTimeAsync(0)
+  streams[0].emit(type === 'error' ? { type, code: 'network' } : { type })
+  guardian.stop()
+  expect(guardian.state).toMatchObject({
+    recognition: type === 'error' ? 'ERROR' : 'ENDED', recovery: null, result: null, transcript: '',
+  })
+})
+
+test('deliberate stop during automatic critical rescue keeps playback and never restarts recognition', async () => {
+  const { guardian, analyze, finalize, rescue, streams, notifyFamily } = setup()
+  analyze.mockResolvedValue({ ...result('FAMILY_RESCUE', 75), evidence_fragment_ids: [1] })
+  let endPlayback!: () => void
+  rescue.mockImplementation(() => new Promise<void>((resolve) => { endPlayback = resolve }))
+  guardian.start('en-IN')
+  finalize('Do not tell anyone do not disconnect the call transfer the money to a safe account immediately')
+  await vi.advanceTimersByTimeAsync(0)
+  const signal = rescue.mock.calls[0][1]
+  guardian.stop()
+  expect(signal.aborted).toBe(false)
+  expect(guardian.state).toMatchObject({ recognition: 'STOPPED', rescue: { playing: true },
+    recovery: { level: 'critical' }, result: null, transcript: '' })
+  endPlayback()
+  await vi.advanceTimersByTimeAsync(350)
+  expect(guardian.state.rescue?.playing).toBe(false)
+  expect(streams).toHaveLength(1)
+  expect(notifyFamily).toHaveBeenCalledOnce()
+  guardian.dismissRescue()
+  expect(guardian.state.rescue).toBeNull()
+  expect(guardian.state.recovery?.level).toBe('critical')
+  guardian.discard()
+  expect(guardian.state.recovery).toBeNull()
 })
 
 test('blocked playback keeps the visual warning and restarts recognition', async () => {
