@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FamilyRescuePanel } from '../family/FamilyRescuePanel'
+import { useFamilyLink } from '../alerts/familyLink'
 import { type SpeechLanguage, type SpeechProvider } from '../speech/provider'
 import { useMicrophonePermission } from '../speech/useMicrophonePermission'
 import { GuardianSession, initialGuardianState, isMonitoring } from './GuardianSession'
@@ -47,9 +48,17 @@ export function LiveGuardian({ provider }: { provider: SpeechProvider }) {
   const [language, setLanguage] = useState<SpeechLanguage>('te-IN')
   const [state, setState] = useState(initialGuardianState)
   const permission = useMicrophonePermission()
-  const session = useMemo(() => new GuardianSession(provider, setState), [provider])
+  const family = useFamilyLink()
+  const session = useMemo(() => new GuardianSession(provider, setState, undefined, undefined, undefined, undefined,
+    (notice) => family.link.publish(notice)), [provider, family.link])
   const rescueButton = useRef<HTMLButtonElement>(null)
   const monitoring = isMonitoring(state.recognition)
+  const protection = !monitoring ? 'idle' : state.analysis === 'UNAVAILABLE' ? 'unavailable' :
+    state.risk === 'CRITICAL' ? 'critical' : state.risk === 'WARNING' ? 'warning' :
+      state.risk === 'CAUTION' ? 'caution' : 'listening'
+  useEffect(() => { family.link.setProtection(protection) }, [family.link, protection])
+  const familyOnline = family.state.connection === 'connected' && family.state.snapshot?.peer_online
+  const latestAlert = family.state.snapshot?.alerts[0]
   const risk = riskLabels[state.risk]
   const showWarning = isHighRisk(state.risk)
   const analyzerUnavailable = state.analysis === 'UNAVAILABLE'
@@ -126,6 +135,22 @@ export function LiveGuardian({ provider }: { provider: SpeechProvider }) {
           session.dismissRescue()
           requestAnimationFrame(() => rescueButton.current?.focus())
         }} />}
+
+      <section aria-labelledby="family-device-heading" className="space-y-2 rounded-xl border border-teal-700 bg-teal-50 p-4">
+        <h2 id="family-device-heading" className="text-xl font-bold">కుటుంబ పరికరం జత</h2>
+        {family.credentials?.role === 'elder' ? <div role="status">
+        {family.state.connection === 'revoked' ? 'కుటుంబ అనుసంధానం ముగిసింది. మళ్లీ జత చేయండి.' :
+          familyOnline ? 'కుటుంబ పరికరం ఆన్‌లైన్‌లో ఉంది.' : 'కుటుంబ పరికరం అందుబాటులో లేదు. స్థానిక రక్షణ కొనసాగుతుంది.'}
+        {family.state.pending > 0 && <p>హెచ్చరిక సర్వర్‌కు చేరినట్లు ఇంకా నిర్ధారణ కాలేదు.</p>}
+        {family.state.error && <p>సర్వర్ చివరి చర్యను స్వీకరించలేదు.</p>}
+        {latestAlert && !family.state.pending && <p>{latestAlert.acknowledged_at
+          ? 'మీ కుటుంబ సభ్యుడు హెచ్చరికను చదివినట్లు నిర్ధారించారు.'
+          : 'హెచ్చరిక సర్వర్‌కు చేరింది. కుటుంబ నిర్ధారణ కోసం వేచి ఉంది.'}</p>}
+        </div> : <p>కుటుంబ సభ్యుడి కోడ్‌తో వారి పరికరాన్ని జత చేయండి. ఇది సేవ్ చేసిన కుటుంబ స్వర సందేశానికి వేరు.</p>}
+        <a href="?view=family-guardian&amp;device=elder" className="inline-flex min-h-12 items-center rounded-lg bg-teal-800 px-4 py-2 font-semibold text-white">
+          {family.credentials?.role === 'elder' ? 'జతను చూడండి లేదా తొలగించండి' : 'కుటుంబ పరికరాన్ని జత చేయండి'}
+        </a>
+      </section>
 
       {monitoring && <section aria-labelledby="guardian-risk" className={`space-y-3 rounded-lg border-2 p-5 ${risk.color}`}>
         <div role="status" aria-atomic="true">

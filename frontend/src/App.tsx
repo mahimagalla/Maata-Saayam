@@ -4,6 +4,7 @@ import { browserSpeechProvider } from './speech/browserSpeech'
 import { SpeechLab } from './speech/SpeechLab'
 import { LiveGuardian } from './guardian/LiveGuardian'
 import { FamilySetup } from './family/FamilySetup'
+import { FamilyGuardian } from './alerts/FamilyGuardian'
 
 const sections = [
   { id: 'elder', title: 'Elder Protection', telugu: 'పెద్దల రక్షణ' },
@@ -13,10 +14,12 @@ const sections = [
 
 export function App() {
   if (typeof window !== 'undefined') {
-    const view = new URLSearchParams(window.location.search).get('view')
+    const params = new URLSearchParams(window.location.search)
+    const view = params.get('view')
     if (view === 'speech-lab') return <SpeechLab provider={browserSpeechProvider(window)} />
     if (view === 'live-guardian') return <LiveGuardian provider={browserSpeechProvider(window)} />
     if (view === 'family-setup') return <FamilySetup />
+    if (view === 'family-guardian') return <FamilyGuardian initialRole={params.get('device') === 'elder' ? 'elder' : 'family'} />
   }
   return <Landing />
 }
@@ -63,6 +66,9 @@ function Landing() {
           <li>
             <a href="?view=live-guardian" className="inline-block rounded py-2 text-teal-800 underline">Live Guardian</a>
           </li>
+          <li>
+            <a lang="te" href="?view=family-guardian&amp;device=elder" className="inline-block rounded py-2 font-semibold text-teal-800 underline">కుటుంబ పరికరాన్ని జత చేయండి</a>
+          </li>
         </ul>
       </nav>
 
@@ -72,7 +78,10 @@ function Landing() {
             className="rounded-lg border border-slate-300 p-5">
             <h2 id={`${id}-title`} className="text-xl font-semibold">{title}</h2>
             <p lang="te">{telugu}</p>
-            {id === 'family' ? <a href="?view=family-setup" className="inline-block py-2 text-teal-800 underline">Family Setup</a>
+            {id === 'family' ? <div className="flex flex-wrap gap-4">
+              <a href="?view=family-guardian" className="inline-block py-2 font-semibold text-teal-800 underline">Open Family Guardian</a>
+              <a href="?view=family-setup" className="inline-block py-2 text-teal-800 underline">Family Setup</a>
+            </div>
               : <p className="mt-1 text-slate-700">Planned for a later phase.</p>}
           </section>
         ))}

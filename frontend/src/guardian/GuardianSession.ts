@@ -1,4 +1,5 @@
 import { requestAnalysis, type AnalysisResult, type TranscriptFragment } from '../speech/analysisApi'
+import { alertId, type AlertNotice, type AlertState, type Threat } from '../alerts/familyLink'
 import { readFamilyVoice, type FamilyVoice } from '../family/familyVoiceStore'
 import { fallbackMessage, playFamilyRescue } from '../family/rescueAudio'
 import type { SpeechEvent, SpeechLanguage, SpeechProvider, SpeechSession } from '../speech/provider'
@@ -55,6 +56,7 @@ export class GuardianSession {
   private familyVoice: FamilyVoice | null = null
   private criticalEvidence = new Set<number>()
   private lastRescueAt = -Infinity
+  private notice?: { id: string; evidence: number[]; state: AlertState }
 
   constructor(
     private provider: SpeechProvider,
@@ -63,6 +65,7 @@ export class GuardianSession {
     private playWarning = playTeluguWarning,
     private loadVoice = readFamilyVoice,
     private playRescue = playFamilyRescue,
+    private notifyFamily: (notice: AlertNotice) => void = () => {},
   ) {}
 
   start(language: SpeechLanguage) {
@@ -91,8 +94,12 @@ export class GuardianSession {
 
   requestRescue() {
     if (this.state.rescue) return
-    if (this.state.risk === 'CRITICAL') {
-      for (const id of this.state.result?.evidence_fragment_ids ?? []) this.criticalEvidence.add(id)
+    const result = this.state.result
+    if (this.state.risk === 'CRITICAL' && result?.recommended_action === 'FAMILY_RESCUE' &&
+        Date.now() < (this.window.nextExpiry() ?? 0)) {
+      const ids = result.evidence_fragment_ids ?? []
+      for (const id of ids) this.criticalEvidence.add(id)
+      if (ids.length) this.reportEpisode(ids, result, 'rescue')
     }
     this.openRescue(true)
   }
@@ -203,18 +210,42 @@ export class GuardianSession {
       if (result.recommended_action === 'FAMILY_RESCUE' && this.risk.state === 'CRITICAL') {
         const continuing = ids.some((id) => this.criticalEvidence.has(id))
         if (continuing || fresh) this.criticalEvidence = new Set(ids)
-        if (fresh && !continuing && !this.state.rescue) {
+        const opensRescue = fresh && !continuing && !this.state.rescue
+        if (opensRescue) {
           const play = now - this.lastRescueAt >= warningCooldownMs
           if (play) this.lastRescueAt = now
           this.openRescue(play)
         }
-      } else if (shouldWarn && !this.state.rescue) void this.announce()
+        if (fresh) this.reportEpisode(ids, result, opensRescue || (continuing && this.state.rescue) ? 'rescue' : 'critical')
+      } else if (shouldWarn && !this.state.rescue) {
+        this.reportEpisode(ids, result, 'warning')
+        void this.announce()
+      }
     }).catch(() => {
       if (this.request?.controller === controller) this.update({ analysis: 'UNAVAILABLE' })
     }).finally(() => {
       clearTimeout(timeout)
       if (this.request?.controller === controller) this.request = undefined
     })
+  }
+
+  private reportEpisode(ids: number[], result: AnalysisResult, state: AlertState) {
+    try {
+      const prior = this.notice
+      const continuing = prior && ids.some((id) => prior.evidence.includes(id))
+      const evidence = continuing ? [...new Set([...prior.evidence, ...ids])] : ids
+      if (continuing && (prior.state === state || prior.state === 'rescue' ||
+          (prior.state === 'critical' && state === 'warning'))) {
+        prior.evidence = evidence
+        return
+      }
+      const id = continuing ? prior.id : alertId()
+      this.notice = { id, state, evidence }
+      const categories = result.detected_signals.map((signal) => signal.category)
+      const preferred: Threat[] = ['legal_threat', 'financial_manipulation', 'credential_theft', 'coercion',
+        'parcel_scam', 'authority_impersonation', 'secrecy_isolation', 'urgency']
+      this.notifyFamily({ id, state, category: preferred.find((category) => categories.includes(category)) ?? 'other' })
+    } catch { /* Remote notification must not interrupt local protection. */ }
   }
 
   private async announce() {
@@ -336,6 +367,7 @@ export class GuardianSession {
     this.familyVoice = null
     this.criticalEvidence.clear()
     this.lastRescueAt = -Infinity
+    this.notice = undefined
     this.window = new TranscriptWindow()
     this.risk = new RiskMonitor()
     this.evaluatedThrough = 0

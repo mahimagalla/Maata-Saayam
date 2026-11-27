@@ -4,6 +4,14 @@ Maata-Saayam is a voice safety prototype for older adults in India, with Telugu 
 
 Speech Lab uses a browser microphone for short recognition tests. Live Guardian listens through the device microphone near a speakerphone. The application does not access native cellular calls.
 
+## Phase 6 family alerts
+
+[Family Guardian](http://127.0.0.1:5173/?view=family-guardian) pairs an elder’s browser with a family member’s browser using a single-use code or QR. The code expires after five minutes, and the elder must confirm the displayed family name and consent. Either device can unlink the pair.
+
+Serious warnings and critical rescue send a categorized alert to the paired family dashboard. The elder can see when the server accepted an alert and when the family member acknowledged it. The alert channel carries no call audio, transcripts, or matched phrases. If the elder voluntarily entered a number, **Contact elder** opens the phone dialer when selected.
+
+Family Setup stores the prerecorded rescue voice separately in the elder’s browser. Local warnings and playback remain available with the family device offline, as long as the analyzer is reachable. Ordinary speech and caution do not send alerts.
+
 ## Test Live Guardian
 
 1. Open [Live Guardian](http://127.0.0.1:5173/?view=live-guardian) in a regular desktop Chrome tab. Choose a recognition language and select **పర్యవేక్షణ ప్రారంభించండి** (Start monitoring). Allow microphone access.
@@ -101,3 +109,39 @@ docker compose config
 ```
 
 Package and image downloads require network access. Startup requires no external API keys. See [architecture](docs/ARCHITECTURE.md) and the [implementation plan](docs/IMPLEMENTATION_PLAN.md).
+
+## Pair and test on two Windows or mobile devices
+
+Use test names and omit real phone numbers on an HTTP LAN. For an HTTPS deployment, use a trusted certificate on both devices. The default Compose port is loopback-only. To run a LAN test, connect both devices to the same private Wi-Fi and run these commands in PowerShell on the host:
+
+```powershell
+Get-NetIPConfiguration
+$env:APP_BIND = '0.0.0.0'
+docker compose config
+docker compose up --build
+```
+
+Choose the private IPv4 address from the host’s Wi-Fi adapter. If Windows blocks incoming connections on the private network, run the following in an elevated PowerShell and remove the rule after testing:
+
+```powershell
+New-NetFirewallRule -DisplayName 'Maata-Saayam LAN test' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 5173 -Profile Private -RemoteAddress LocalSubnet
+# After testing
+Remove-NetFirewallRule -DisplayName 'Maata-Saayam LAN test'
+```
+
+If using the Windows development commands instead of Docker, keep Uvicorn bound to `127.0.0.1:8000`, change the frontend command to `npm.cmd run dev -- --host 0.0.0.0`, and expose only port 5173. The browser must reach the frontend proxy. Do not expose port 8000. Where the Wi-Fi network isolates clients, use a private network that allows device-to-device traffic.
+
+1. On the **family device**, open `http://<host-ip>:5173/?view=family-guardian`, choose **Family device**, enter a display name, and generate a code.
+2. On the **elder device**, open Live Guardian and select **కుటుంబ పరికరాన్ని జత చేయండి** (Pair family device). The same link is on the homepage. Enter the code under **జత చేసే కోడ్**, select **కుటుంబ పేరును చూడండి**, and verify the displayed family name. Enter the elder’s name, check the consent box, and select **జత చేయండి · Confirm pairing**. After pairing, Live Guardian’s **జతను చూడండి లేదా తొలగించండి** link opens connection status and **జత తొలగించండి**. This flow is separate from Family Setup, which records the local voice message. Scanning the QR with a phone camera opens the same workflow with the code filled in. The QR uses the current app address, so a QR generated on localhost only works on that machine.
+3. For an HTTP LAN test, use the **host computer as the elder device** and open the app at `http://127.0.0.1:5173`. Enter the code manually. This allows microphone access where the browser treats loopback as trustworthy, while the physically separate family device uses the host’s LAN address. For an elder on a different device, serve the app through trusted HTTPS. The browser may block microphone access on a plain LAN IP.
+4. Leave Family Guardian open. Enable alert sound if desired. On the elder device, open Live Guardian, start monitoring in English (India), and say “You are under arrest” for a warning. In a new session, say “Do not tell anyone do not disconnect the call transfer the money to a safe account immediately” for critical rescue. If recognition captures the complete utterance, expect **75/100** in diagnostics, the ringtone and saved local voice (or fallback), and one **Family rescue** alert on the phone.
+5. Acknowledge the alert in Family Guardian and check the Telugu acknowledgement on the elder’s screen. Close the family page, produce a new serious episode, then reopen it to check delivery from server memory. Unlink either device to revoke both browser credentials.
+
+For deployment, terminate TLS at a trusted proxy and serve the UI and API under one origin. Forward WebSocket upgrades, preserve the public Host header, and forward the original scheme to Uvicorn over a protected hop. If TLS terminates outside the bundled Nginx, configure Nginx to preserve the scheme from that trusted proxy or route `/api/` directly from the TLS proxy to the backend. Set `FAMILY_REQUIRE_HTTPS=1` and `FORWARDED_ALLOW_IPS` to the specific upstream proxy IP or trusted CIDR. Keep the backend and any plain HTTP ingress private. Use one backend process for the in-memory prototype.
+
+### Current limits
+
+- A single backend process holds pairing credentials and up to 40 alerts per pair in memory. Restarting or recreating that backend erases pairings and alert history. Choose **Set up again · మళ్లీ జత చేయండి** and pair again after a restart.
+- The family dashboard must be open for immediate alerts. Reopening it after a disconnect shows missed alerts still retained by the same backend. The prototype does not send background push notifications. Audible notifications also depend on browser playback permissions.
+- Unconfirmed alerts can retry while the elder’s Live Guardian page remains open. Closing that page discards its pending queue.
+- Pairing connects one elder browser and one family browser. It uses device credentials and a shared code, without account identity verification. Clearing browser site data removes the local credential and any saved voice.
